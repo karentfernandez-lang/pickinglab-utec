@@ -135,7 +135,10 @@ with pestanas[0]:
             st.error(f'No se pudo importar el archivo: {e}')
     st.markdown('#### Editar o eliminar SKU')
     st.caption('Para eliminar productos completos, seleccioná sus códigos y pulsá el botón. También podés editar o agregar filas en la tabla.')
+    if st.session_state.pop('_limpiar_sku_eliminar', False):
+        st.session_state['sku_eliminar'] = []
     codigos=[str(v) for v in st.session_state.skus['SKU'].tolist() if pd.notna(v) and str(v).strip()]
+    # El selector conserva el estado entre ejecuciones; se limpia en el callback del botón.
     seleccion=st.multiselect('Seleccionar SKU para eliminar',options=list(dict.fromkeys(codigos)),key='sku_eliminar')
     if st.button('🗑️ Eliminar SKU seleccionados',disabled=not seleccion):
         restantes=st.session_state.skus.loc[~st.session_state.skus['SKU'].astype(str).isin(seleccion)].copy()
@@ -144,7 +147,8 @@ with pestanas[0]:
         else:
             st.session_state.skus=restantes.reset_index(drop=True)
             st.session_state.pop('sku_editor',None)
-            st.session_state.sku_eliminar=[]
+            st.session_state['_limpiar_sku_eliminar'] = True
+            # No modificar sku_eliminar aquí: el multiselect ya fue instanciado.
             st.rerun()
     skus_edit=st.data_editor(st.session_state.skus,num_rows='dynamic',hide_index=True,use_container_width=True,key='sku_editor',column_config={
         'SKU':st.column_config.TextColumn('SKU',required=True),
