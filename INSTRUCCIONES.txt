@@ -1,0 +1,46 @@
+PICKINGLAB UTEC — GUÍA DE USO
+
+1) Instalar Python 3.11 o superior desde python.org (marcar Add Python to PATH).
+2) Extraer este ZIP y abrir la carpeta app_picking en Visual Studio Code.
+3) Abrir Terminal > Nuevo terminal.
+4) Ejecutar: py -m pip install -r requirements.txt
+5) Ejecutar: py -m streamlit run app.py
+6) Si no se abre automáticamente, visitar http://localhost:8501
+
+ARCHIVOS
+app.py: interfaz web editable.
+motor.py: fórmulas, validaciones, optimización y direcciones.
+test_motor.py: pruebas automáticas.
+requirements.txt: dependencias.
+
+DATOS
+En la pestaña Datos y cuentas, editar filas o subir un Excel/CSV con encabezados EXACTOS:
+SKU,p,d,P,b,c,u
+A,100,10,0.8,1,1,3
+
+P mayúscula = pallets necesarios hasta la reposición; p minúscula = picks semanales.
+Usar punto decimal en CSV; en Excel las celdas pueden ser numéricas.
+
+LAYOUT
+En Plano del almacén, subir Excel o CSV SIN ENCABEZADOS, con una casilla por celda.
+Cada casilla debe contener un identificador de dirección único, PASILLO o BLOQUEADO.
+El layout puede cambiar de tamaño. N no puede exceder las direcciones existentes.
+Si N es menor que las direcciones, se habilitan primero las filas inferiores y después
+las columnas de izquierda a derecha. Se asignan SKU por p descendente, empate por código.
+
+PRUEBAS PARA LA DEFENSA
+- Caso X: p=50,d=8,P=0.8,b=1,c=1,u=3. l=1, mínimo=26, todo=50.
+- Caso del profesor: 6 SKU, N=8, ahorro óptimo=335, base=900, trabajo=565.
+- Cambiar N=1: ninguna selección debe ocupar más de 1 dirección.
+- Cambiar b a 0, duplicar un SKU o repetir una dirección: debe aparecer un error.
+- Pulsar Cargar segundo almacén de prueba: 4 SKU nuevos, otro layout con BLOQUEADO,
+  N=7, y otros tiempos. También probar con archivos del docente.
+- Revisar las tres propuestas propias y exportar resultados en Excel.
+
+LIMITACIONES
+Modelo didáctico de tres decisiones (Nada/Mínimo/Todo) por SKU.
+Cada dirección almacena un pallet; no se calcula congestión variable, distancias
+reales, doble profundidad ni pedidos de pallets completos. No se modifica el código
+para probar otros SKU o layouts compatibles.
+
+Para correr pruebas: py -m unittest -v
