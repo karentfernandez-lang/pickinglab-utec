@@ -61,9 +61,10 @@ with st.sidebar:
     st.caption('Los tiempos son promedios fijos; la actividad corresponde a una semana.')
     st.button('Restaurar caso del profesor',use_container_width=True,on_click=restaurar_caso)
 
-pestanas=st.tabs(['1 · Datos y cuentas','2 · Optimización','3 · Plano del almacén','4 · Pruebas y exportación'])
+pestanas=st.tabs(['1 · Datos','2 · Cálculos','3 · Optimización','4 · Layout','5 · Pruebas'])
 with pestanas[0]:
     st.subheader('Datos de los productos')
+    st.info('**Empezá acá:** editá los SKU o importá una planilla. Los tiempos y N están en el panel lateral. Después entrá en «2 · Cálculos» para revisar cada cuenta.')
     st.write('Podés editar, agregar o eliminar filas. **p** = extracciones semanales; **d** = pallets equivalentes movidos por semana; **P** = inventario hasta la reposición; **b** = pallets por ubicación; **c** = frentes mínimos; **u** = ubicaciones para todo.')
     carga=st.file_uploader('Opcional: importar productos CSV o Excel (.xlsx)',type=['csv','xlsx'],key='sku_upload')
     if carga is not None and st.button('Usar archivo de productos'):
@@ -85,9 +86,10 @@ with pestanas[0]:
         'u':st.column_config.NumberColumn('u · ubicaciones')})
     st.caption('Atención: P mayúscula y p minúscula son datos diferentes. Usá punto decimal al escribir, por ejemplo 0.8.')
 
-with pestanas[2]:
-    st.subheader('Layout editable')
-    st.caption('Podés subir una planilla de layout. Cada celda debe ser una dirección, PASILLO o BLOQUEADO; no incluyas encabezados.')
+with pestanas[3]:
+    st.subheader('Diseñá el plano del almacén')
+    st.info('**Cómo usar esta sección:** 1) Elegí las filas y columnas. 2) Escribí un código único por ubicación (L01, L02…), PASILLO o BLOQUEADO. 3) Mirá abajo cómo se asignan los productos automáticamente. Los pasillos y bloqueos nunca cuentan como ubicaciones.')
+    st.caption('También podés subir un Excel o CSV con el plano, sin encabezados. Cada celda es una posición física.')
     layout_file=st.file_uploader('Importar layout (Excel o CSV)',type=['xlsx','csv'],key='layout_upload')
     if layout_file is not None and st.button('Cargar layout del archivo'):
         try:
@@ -111,8 +113,8 @@ with pestanas[2]:
         st.session_state.layout=pd.DataFrame(matriz)
         st.session_state.pop('layout_editor',None)
         st.rerun()
-    st.caption('Para una dirección nueva escribí un código único, por ejemplo L09.')
-    layout_edit=st.data_editor(st.session_state.layout,hide_index=True,use_container_width=True,key='layout_editor',column_config={str(i):st.column_config.TextColumn(f'C{i+1}') for i in range(len(st.session_state.layout.columns))})
+    st.caption('Ejemplo: L09 = dirección habilitada; PASILLO = espacio de circulación; BLOQUEADO = espacio inutilizable. Al agrandar el plano, las celdas nuevas empiezan BLOQUEADO para evitar asignaciones accidentales.')
+    layout_edit=st.data_editor(st.session_state.layout,hide_index=True,use_container_width=True,key='layout_editor',column_config={i:st.column_config.TextColumn(f'Columna {i+1}') for i in range(len(st.session_state.layout.columns))})
 
 error=None
 try:
@@ -126,10 +128,11 @@ try:
 except (ValueError,TypeError,KeyError) as e:
     error=str(e)
 
-with pestanas[0]:
+with pestanas[1]:
     if error: st.error('Revisá los datos: '+error)
     else:
         st.subheader('Cálculos automáticos')
+        st.caption('Esta pestaña muestra cómo se obtiene l y los minutos ahorrados para Nada, Mínimo y Todo. Los valores negativos indican que esa opción aumenta el trabajo.')
         st.latex(r'l=\max\left(\left\lceil\frac{P}{b}\right\rceil,c\right)')
         st.latex(r's=t_{reserva}-t_{picking}\qquad B_{mínimo}=s\,p-c_r\,d\qquad B_{todo}=s\,p')
         st.dataframe(pd.DataFrame([{'SKU':it['SKU'],'P/b':round(it['P']/it['b'],3),'ceil(P/b)':math.ceil(it['P']/it['b']),'c':it['c'],'l':it['l'],'u':it['u'],'Nada (min)':0,'Mínimo (min)':round(it['B_min'],2),'Todo (min)':round(it['B_todo'],2)} for it in items]),hide_index=True,use_container_width=True)
@@ -138,7 +141,7 @@ with pestanas[0]:
                 st.markdown(f"**{it['SKU']}** · l = max(ceil({it['P']:g}/{it['b']:g}), {it['c']}) = **{it['l']}** ubicaciones · Nada: **0** min · Mínimo: ({it['s']:g} × {it['p']}) − ({reposicion:g} × {it['d']:g}) = **{it['B_min']:g} min** · Todo: {it['s']:g} × {it['p']} = **{it['B_todo']:g} min**")
                 if it['l']==it['u']: st.caption('En este SKU, mínimo y todo ocupan lo mismo: se utiliza la opción Todo sin reposición interna.')
 
-with pestanas[1]:
+with pestanas[2]:
     st.subheader('Mejor asignación de espacio')
     if error: st.warning('Corregí primero los datos: '+error)
     else:
@@ -151,6 +154,7 @@ with pestanas[1]:
         st.dataframe(pd.DataFrame(mejor['decisiones']),hide_index=True,use_container_width=True)
         st.caption(f'Escenario base (todo en reserva): {base:g} minutos por semana. Trabajo con propuesta: {base:g} − {mejor["ahorro"]:g} = {base-mejor["ahorro"]:g} minutos.')
         st.subheader('Comparación de propuestas factibles')
+        st.caption('Estas propuestas se generan automáticamente. Más abajo podés armar tres propuestas manuales, como pide el profesor.')
         st.dataframe(pd.DataFrame([{'Propuesta':f'{i+1}','Ubicaciones':p['ubicaciones'],'Ahorro (min/sem)':p['ahorro'],'Decisiones':', '.join(f"{d['SKU']}: {d['opcion']}" for d in p['decisiones'])} for i,p in enumerate(propuestas)]),hide_index=True,use_container_width=True)
         st.bar_chart(pd.DataFrame({'Propuesta':[f'Propuesta {i+1}' for i in range(len(propuestas))],'Ahorro semanal':[p['ahorro'] for p in propuestas]}).set_index('Propuesta'))
         st.info('La optimización es exacta: evalúa las alternativas Nada, Mínimo y Todo mediante programación dinámica, respetando N. Ordenar por ahorro por ubicación NO garantiza el óptimo.')
@@ -174,10 +178,11 @@ with pestanas[1]:
         st.dataframe(pd.DataFrame(alternativas),hide_index=True,use_container_width=True)
 
 
-with pestanas[2]:
+with pestanas[3]:
     if error: st.warning('Corregí primero los datos: '+error)
     else:
         st.subheader('Asignación física de direcciones')
+        st.info('**Cómo leer el plano:** cada rectángulo es una casilla física. El código L01, L02, etc. es la dirección; la letra grande indica el SKU. PASILLO y BLOQUEADO nunca reciben productos. Las casillas LIBRE están disponibles pero no ocupadas.')
         st.caption('Regla: ordenar SKU por p descendente (empates por código); ocupar primero las direcciones de filas inferiores, de izquierda a derecha. Solo se utilizan N direcciones habilitadas.')
         colores=['#CDE9F8','#D5F4DC','#FFE5BF','#E8DBFF','#FAD9E5','#F8F0BD','#D8E8E5','#E3E7ED']
         color_sku={it['SKU']:colores[i%len(colores)] for i,it in enumerate(items)}
@@ -194,12 +199,19 @@ with pestanas[2]:
                         fondo=color_sku[sku] if sku else ('#F1F5F9' if habilitada else '#D7DBE1')
                         etiqueta=sku if sku else ('LIBRE' if habilitada else 'NO HABILITADA')
                         st.markdown(f'<div class="celda" style="background:{fondo};color:#1e293b"><div class="direccion">{html.escape(celda)}</div><div class="sku" style="font-size:{"1.3rem" if sku else ".72rem"}">{html.escape(etiqueta)}</div></div>',unsafe_allow_html=True)
+        st.markdown('**Leyenda del plano**')
+        leyenda=st.columns(min(len(items),6))
+        for k,it in enumerate(items):
+            with leyenda[k%len(leyenda)]:
+                st.markdown(f'<div style="background:{colores[k%len(colores)]};color:#172334;padding:8px;border-radius:8px;text-align:center;font-weight:700">SKU {html.escape(it["SKU"])}</div>',unsafe_allow_html=True)
+        st.caption('Gris claro: pasillo / libre. Gris oscuro: bloqueado o no habilitado. La regla de ubicación se aplica de forma uniforme y no modifica el ahorro del modelo.')
         st.markdown('**Direcciones asignadas por SKU**')
         st.dataframe(pd.DataFrame([{'SKU':k,'Direcciones':', '.join(v) if v else 'En reserva','Cantidad':len(v)} for k,v in por_sku.items()]),hide_index=True,use_container_width=True)
-        st.caption('Los colores identifican productos; las casillas LIBRE están habilitadas y no ocupadas. Las casillas NO HABILITADA no forman parte de las N posiciones utilizables.')
+        st.caption('Comprobación: el número de direcciones de cada SKU debe coincidir exactamente con las ubicaciones de su decisión Nada, Mínimo o Todo. Una dirección solo puede aparecer una vez.')
 
-with pestanas[3]:
+with pestanas[4]:
     st.subheader('Validación y exportación')
+    st.caption('Usá esta pestaña para demostrar que el programa cumple las restricciones. Luego probá otro almacén y exportá el resultado para el informe.')
     if error: st.warning('Corregí primero los datos: '+error)
     else:
         comprobaciones=[
