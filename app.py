@@ -176,7 +176,7 @@ with pestanas[3]:
         except Exception as e: st.error(f'No se pudo cargar el layout: {e}')
     st.download_button('Descargar layout de ejemplo (CSV)',pd.DataFrame(DEFAULT_LAYOUT).to_csv(index=False,header=False).encode('utf-8-sig'),'plantilla_layout.csv','text/csv')
 
-    st.write('Cada casilla debe contener una dirección única, **PASILLO** o **BLOQUEADO**. Podés editar las celdas y agregar filas o columnas usando el tamaño elegido.')
+    st.write('Cada casilla debe contener una dirección única (por ejemplo **L09**), **PASILLO** o **BLOQUEADO**. **No escribas LIBRE**: la aplicación lo mostrará automáticamente cuando una dirección no esté ocupada. Podés editar las celdas y agregar filas o columnas usando el tamaño elegido.')
     col1,col2=st.columns(2)
     with col1: filas=st.number_input('Filas del plano',min_value=1,max_value=30,value=len(st.session_state.layout),step=1)
     with col2: columnas=st.number_input('Columnas del plano',min_value=1,max_value=20,value=len(st.session_state.layout.columns),step=1)
@@ -279,15 +279,15 @@ with pestanas[3]:
                     else:
                         sku=asignadas.get(celda)
                         habilitada=celda in direcciones
-                        fondo=color_sku[sku] if sku else ('#F1F5F9' if habilitada else '#D7DBE1')
-                        etiqueta=sku if sku else ('LIBRE' if habilitada else 'NO HABILITADA')
-                        st.markdown(f'<div class="celda" style="background:{fondo};color:#1e293b"><div class="direccion">{html.escape(celda)}</div><div class="sku" style="font-size:{"1.3rem" if sku else ".72rem"}">{html.escape(etiqueta)}</div></div>',unsafe_allow_html=True)
+                        fondo=color_sku[sku] if sku else ('#BFF0D0' if habilitada else '#D7DBE1')
+                        etiqueta=sku if sku else ('● LIBRE' if habilitada else 'NO HABILITADA')
+                        st.markdown(f'<div class="celda" style="background:{fondo};color:#1e293b"><div class="direccion">{html.escape(celda)}</div><div class="sku" style="font-size:{"1.3rem" if sku else "1rem"}">{html.escape(etiqueta)}</div></div>',unsafe_allow_html=True)
         st.markdown('**Leyenda del plano**')
         leyenda=st.columns(min(len(items),6))
         for k,it in enumerate(items):
             with leyenda[k%len(leyenda)]:
                 st.markdown(f'<div style="background:{colores[k%len(colores)]};color:#172334;padding:8px;border-radius:8px;text-align:center;font-weight:700">SKU {html.escape(it["SKU"])}</div>',unsafe_allow_html=True)
-        st.caption('Gris claro: pasillo / libre. Gris oscuro: bloqueado o no habilitado. La regla de ubicación se aplica de forma uniforme y no modifica el ahorro del modelo.')
+        st.caption('Verde claro con ● LIBRE: ubicación disponible sin SKU. Gris claro: pasillo. Gris oscuro: bloqueado o no habilitado. La regla de ubicación se aplica de forma uniforme y no modifica el ahorro del modelo.')
         # Resumen de espacios físicos: ocupado, libre dentro de N y fuera de N.
         direcciones_plano=[
             celda for fila in grid for celda in fila

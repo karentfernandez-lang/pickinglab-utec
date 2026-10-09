@@ -71,6 +71,7 @@ def validar_layout(grid,N):
             v=str(cell).strip().upper()
             if not v: raise ValueError(f'Layout fila {i}, columna {j}: casilla vacía.')
             if v in ('PASILLO','BLOQUEADO'): continue
+            if v == 'LIBRE': raise ValueError(f'Layout fila {i}, columna {j}: LIBRE no es una dirección. Escribí un código único, por ejemplo L09; la app mostrará LIBRE automáticamente cuando esté desocupada.')
             if v in vistos: raise ValueError(f'Dirección repetida en el layout: {v}.')
             vistos.add(v); dirs.append((v,i,j))
     if N>len(dirs): raise ValueError(f'N={N} supera las {len(dirs)} direcciones del layout.')
