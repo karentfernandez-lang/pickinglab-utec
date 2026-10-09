@@ -2,9 +2,60 @@ import io
 import json
 import html
 import math
+import csv
+import unicodedata
 import pandas as pd
 import streamlit as st
 from motor import DEFAULT_SKUS, DEFAULT_LAYOUT, preparar_skus, validar_layout, optimizar, asignar_direcciones
+
+def normalizar_columna(nombre):
+    """Reconoce encabezados comunes sin confundir p con P."""
+    raw=str(nombre).strip()
+    if raw in ('p','P'): return raw
+    normal=unicodedata.normalize('NFKD',raw).encode('ascii','ignore').decode().lower()
+    normal=' '.join(normal.replace('_',' ').replace('-',' ').split())
+    alias={
+        'sku':'SKU','codigo':'SKU','codigo sku':'SKU','producto':'SKU',
+        'extracciones':'p','extracciones semana':'p','picks':'p','picks semana':'p',
+        'pallets semana':'d','pallets por semana':'d','demanda pallets':'d',
+        'inventario':'P','inventario pallets':'P','inventario hasta reposicion':'P',
+        'pallets por ubicacion':'b','capacidad por ubicacion':'b',
+        'frentes':'c','frentes minimos':'c',
+        'ubicaciones':'u','ubicaciones para todo':'u','ubicaciones totales':'u',
+    }
+    return alias.get(normal,raw)
+
+
+def leer_productos(archivo):
+    """Importa datos estructurados, sin intentar adivinar tablas en PDFs o imágenes."""
+    nombre=archivo.name.lower()
+    contenido=archivo.getvalue()
+    if nombre.endswith(('.xlsx','.xls')):
+        df=pd.read_excel(io.BytesIO(contenido))
+    elif nombre.endswith('.json'):
+        obj=json.loads(contenido.decode('utf-8-sig'))
+        if isinstance(obj,dict): obj=obj.get('productos',obj.get('skus',obj.get('datos',obj)))
+        if not isinstance(obj,list): raise ValueError('El JSON debe contener una lista de productos o un objeto con la clave productos/skus/datos.')
+        df=pd.DataFrame(obj)
+    elif nombre.endswith(('.csv','.tsv','.txt')):
+        texto=contenido.decode('utf-8-sig')
+        sep='\t' if nombre.endswith('.tsv') else None
+        try:
+            df=pd.read_csv(io.StringIO(texto),sep=sep,engine='python')
+        except Exception as e:
+            raise ValueError('El texto debe tener una tabla con encabezados y columnas separadas por coma, punto y coma o tabulación.') from e
+    else:
+        raise ValueError('Formato no compatible. Usá XLSX, XLS, CSV, TSV, TXT tabular o JSON.')
+    if df.empty: raise ValueError('El archivo no contiene productos.')
+    df.columns=[normalizar_columna(c) for c in df.columns]
+    if df.columns.duplicated().any(): raise ValueError('Hay columnas repetidas después de reconocer los encabezados.')
+    requeridas=['SKU','p','d','P','b','c','u']
+    faltantes=[c for c in requeridas if c not in df.columns]
+    if faltantes: raise ValueError('Faltan columnas: '+', '.join(faltantes)+'. Las columnas obligatorias son SKU, p, d, P, b, c, u.')
+    df=df[requeridas].copy()
+    if df.isna().any().any(): raise ValueError('Hay valores vacíos en los datos de los SKU.')
+    return df
+
 
 st.set_page_config(page_title='PickingLab | Organización de almacenes',page_icon='📦',layout='wide')
 st.markdown('''<style>
@@ -59,23 +110,42 @@ with st.sidebar:
     picking=st.number_input('Extracción desde picking (min)',min_value=0.01,step=.25,key='picking')
     reposicion=st.number_input('Reposición por pallet (min)',min_value=0.0,step=.25,key='reposicion')
     st.caption('Los tiempos son promedios fijos; la actividad corresponde a una semana.')
-    st.button('Restaurar caso del profesor',use_container_width=True,on_click=restaurar_caso)
+    st.button('Restaurar datos de ejemplo',use_container_width=True,on_click=restaurar_caso)
 
 pestanas=st.tabs(['1 · Datos','2 · Cálculos','3 · Optimización','4 · Layout','5 · Pruebas'])
 with pestanas[0]:
     st.subheader('Datos de los productos')
     st.info('**Empezá acá:** editá los SKU o importá una planilla. Los tiempos y N están en el panel lateral. Después entrá en «2 · Cálculos» para revisar cada cuenta.')
     st.write('Podés editar, agregar o eliminar filas. **p** = extracciones semanales; **d** = pallets equivalentes movidos por semana; **P** = inventario hasta la reposición; **b** = pallets por ubicación; **c** = frentes mínimos; **u** = ubicaciones para todo.')
-    carga=st.file_uploader('Opcional: importar productos CSV o Excel (.xlsx)',type=['csv','xlsx'],key='sku_upload')
-    if carga is not None and st.button('Usar archivo de productos'):
+    st.markdown('#### Importar productos')
+    st.caption('Formatos admitidos: Excel (.xlsx, .xls), CSV, TSV, TXT tabular y JSON. Los archivos deben contener datos estructurados con los campos SKU, p, d, P, b, c y u. No se admiten PDF ni imágenes escaneadas.')
+    carga=st.file_uploader('Seleccionar archivo de productos',type=['csv','xlsx','xls','tsv','txt','json'],key='sku_upload')
+    if carga is not None:
         try:
-            df=pd.read_csv(carga,sep=None,engine='python') if carga.name.lower().endswith('.csv') else pd.read_excel(carga)
-            requeridas=['SKU','p','d','P','b','c','u']
-            if not all(x in df.columns for x in requeridas): raise ValueError('Faltan columnas: '+', '.join(x for x in requeridas if x not in df.columns))
-            st.session_state.skus=df[requeridas].copy()
+            df_importado=leer_productos(carga)
+            # Validar antes de reemplazar los productos actuales.
+            preparar_skus(df_importado.to_dict('records'),reserva,picking,reposicion)
+            st.caption(f'Vista previa: {len(df_importado)} productos reconocidos. Revisá los datos antes de reemplazar la tabla.')
+            st.dataframe(df_importado,hide_index=True,use_container_width=True)
+            if st.button('Confirmar importación y reemplazar productos',type='primary'):
+                st.session_state.skus=df_importado.copy()
+                st.session_state.pop('sku_editor',None)
+                st.rerun()
+        except Exception as e:
+            st.error(f'No se pudo importar el archivo: {e}')
+    st.markdown('#### Editar o eliminar SKU')
+    st.caption('Para eliminar productos completos, seleccioná sus códigos y pulsá el botón. También podés editar o agregar filas en la tabla.')
+    codigos=[str(v) for v in st.session_state.skus['SKU'].tolist() if pd.notna(v) and str(v).strip()]
+    seleccion=st.multiselect('Seleccionar SKU para eliminar',options=list(dict.fromkeys(codigos)),key='sku_eliminar')
+    if st.button('🗑️ Eliminar SKU seleccionados',disabled=not seleccion):
+        restantes=st.session_state.skus.loc[~st.session_state.skus['SKU'].astype(str).isin(seleccion)].copy()
+        if restantes.empty:
+            st.error('Debe quedar al menos un SKU. Importá otro archivo si querés reemplazarlos todos.')
+        else:
+            st.session_state.skus=restantes.reset_index(drop=True)
             st.session_state.pop('sku_editor',None)
+            st.session_state.sku_eliminar=[]
             st.rerun()
-        except Exception as e: st.error(f'No se pudo importar: {e}')
     skus_edit=st.data_editor(st.session_state.skus,num_rows='dynamic',hide_index=True,use_container_width=True,key='sku_editor',column_config={
         'SKU':st.column_config.TextColumn('SKU',required=True),
         'p':st.column_config.NumberColumn('p · extracciones/semana'),
@@ -84,6 +154,7 @@ with pestanas[0]:
         'b':st.column_config.NumberColumn('b · pallets/ubicación',format='%.2f'),
         'c':st.column_config.NumberColumn('c · frentes'),
         'u':st.column_config.NumberColumn('u · ubicaciones')})
+    st.session_state.skus=skus_edit.copy()
     st.caption('Atención: P mayúscula y p minúscula son datos diferentes. Usá punto decimal al escribir, por ejemplo 0.8.')
 
 with pestanas[3]:
@@ -156,7 +227,15 @@ with pestanas[2]:
         st.subheader('Comparación de propuestas factibles')
         st.caption('Estas propuestas se generan automáticamente. Más abajo podés armar tres propuestas manuales, como pide el profesor.')
         st.dataframe(pd.DataFrame([{'Propuesta':f'{i+1}','Ubicaciones':p['ubicaciones'],'Ahorro (min/sem)':p['ahorro'],'Decisiones':', '.join(f"{d['SKU']}: {d['opcion']}" for d in p['decisiones'])} for i,p in enumerate(propuestas)]),hide_index=True,use_container_width=True)
-        st.bar_chart(pd.DataFrame({'Propuesta':[f'Propuesta {i+1}' for i in range(len(propuestas))],'Ahorro semanal':[p['ahorro'] for p in propuestas]}).set_index('Propuesta'))
+        import altair as alt
+        grafico_df=pd.DataFrame({'Propuesta':[f'Propuesta {i+1}' for i in range(len(propuestas))],'Ahorro semanal':[p['ahorro'] for p in propuestas]})
+        grafico=alt.Chart(grafico_df).mark_bar(cornerRadiusTopLeft=5,cornerRadiusTopRight=5).encode(
+            x=alt.X('Propuesta:N',sort=None,title=None,axis=alt.Axis(labelAngle=0)),
+            y=alt.Y('Ahorro semanal:Q',title='Minutos ahorrados por semana'),
+            color=alt.Color('Propuesta:N',scale=alt.Scale(domain=['Propuesta 1','Propuesta 2','Propuesta 3'],range=['#168B68','#3B82C4','#E59A3A']),legend=None),
+            tooltip=['Propuesta:N',alt.Tooltip('Ahorro semanal:Q',format='.2f')]
+        ).properties(height=290)
+        st.altair_chart(grafico,use_container_width=True)
         st.info('La optimización es exacta: evalúa las alternativas Nada, Mínimo y Todo mediante programación dinámica, respetando N. Ordenar por ahorro por ubicación NO garantiza el óptimo.')
         st.markdown('### Compará tres propuestas propias')
         st.caption('Seleccioná Nada, Mínimo o Todo para cada SKU. Se verifican las ubicaciones y el ahorro de cada propuesta, incluso si no es factible.')

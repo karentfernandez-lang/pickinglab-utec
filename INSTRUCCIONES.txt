@@ -14,7 +14,10 @@ test_motor.py: pruebas automáticas.
 requirements.txt: dependencias.
 
 DATOS
-En la pestaña Datos y cuentas, editar filas o subir un Excel/CSV con encabezados EXACTOS:
+En 1 · Datos, editar filas o subir Excel (XLSX/XLS), CSV, TSV, TXT tabular o JSON.
+Se muestra una vista previa y se confirma antes de reemplazar los productos.
+También se pueden seleccionar uno o varios SKU para eliminarlos completos.
+Las columnas recomendadas son:
 SKU,p,d,P,b,c,u
 A,100,10,0.8,1,1,3
 
@@ -44,3 +47,9 @@ reales, doble profundidad ni pedidos de pallets completos. No se modifica el có
 para probar otros SKU o layouts compatibles.
 
 Para correr pruebas: py -m unittest -v
+
+ACTUALIZACIÓN
+- Botón: Restaurar datos de ejemplo.
+- Gráfico de comparación con colores distintos por propuesta.
+- Importación estructurada con validación y vista previa. No se admite cualquier archivo arbitrario: PDFs, fotos y documentos sin tabla estructurada no se procesan.
+- Eliminar varios SKU mediante selección y botón.
