@@ -288,6 +288,21 @@ with pestanas[3]:
             with leyenda[k%len(leyenda)]:
                 st.markdown(f'<div style="background:{colores[k%len(colores)]};color:#172334;padding:8px;border-radius:8px;text-align:center;font-weight:700">SKU {html.escape(it["SKU"])}</div>',unsafe_allow_html=True)
         st.caption('Gris claro: pasillo / libre. Gris oscuro: bloqueado o no habilitado. La regla de ubicación se aplica de forma uniforme y no modifica el ahorro del modelo.')
+        # Resumen de espacios físicos: ocupado, libre dentro de N y fuera de N.
+        direcciones_plano=[
+            celda for fila in grid for celda in fila
+            if celda not in ('PASILLO','BLOQUEADO')
+        ]
+        libres_habilitadas=[d for d in direcciones if d not in asignadas]
+        fuera_capacidad=[d for d in direcciones_plano if d not in direcciones]
+        st.markdown('**Estado de las ubicaciones**')
+        e1,e2,e3=st.columns(3)
+        e1.metric('Ocupadas',len(asignadas))
+        e2.metric('Libres dentro de N',len(libres_habilitadas))
+        e3.metric('Fuera de capacidad N',len(fuera_capacidad))
+        st.write('**Direcciones libres:** '+(', '.join(libres_habilitadas) if libres_habilitadas else 'Ninguna; se utilizaron todas las ubicaciones habilitadas.'))
+        if fuera_capacidad:
+            st.caption('Direcciones del plano fuera de la capacidad N: '+', '.join(fuera_capacidad)+'. Se identifican como NO HABILITADA y no pueden recibir SKU.')
         st.markdown('**Direcciones asignadas por SKU**')
         st.dataframe(pd.DataFrame([{'SKU':k,'Direcciones':', '.join(v) if v else 'En reserva','Cantidad':len(v)} for k,v in por_sku.items()]),hide_index=True,use_container_width=True)
         st.caption('Comprobación: el número de direcciones de cada SKU debe coincidir exactamente con las ubicaciones de su decisión Nada, Mínimo o Todo. Una dirección solo puede aparecer una vez.')

@@ -53,3 +53,5 @@ ACTUALIZACIÓN
 - Gráfico de comparación con colores distintos por propuesta.
 - Importación estructurada con validación y vista previa. No se admite cualquier archivo arbitrario: PDFs, fotos y documentos sin tabla estructurada no se procesan.
 - Eliminar varios SKU mediante selección y botón.
+
+NUEVO: En 4 · Layout se muestran las direcciones LIBRES, las OCUPADAS y las que quedan fuera de la capacidad N. Si se usan las N ubicaciones, el listado indica que no queda ninguna libre.
