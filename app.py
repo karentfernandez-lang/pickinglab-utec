@@ -444,7 +444,7 @@ with pestanas[4]:
                             cell.fill=PatternFill('solid',fgColor=('CBD5E1' if cell.value in ('PASILLO','BLOQUEADO') else 'E0F2FE'))
                         ws.row_dimensions[row[0].row].height=31
                 for col in ws.columns:
-                    letter=col[0].column_letter
+                    letter=get_column_letter(col[0].column)
                     texts=[str(c.value) for c in col if c.value is not None and c.coordinate not in ('A1','A2')]
                     ancho=min(58,max(14,max((len(v) for v in texts),default=12)+3))
                     if ws.title=='Diccionario':ancho={'A':23,'B':43,'C':26,'D':57}.get(letter,ancho)
