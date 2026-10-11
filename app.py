@@ -84,7 +84,8 @@ def restaurar_caso():
     st.session_state.reserva=2.0
     st.session_state.picking=1.0
     st.session_state.reposicion=3.0
-    for key in ('sku_editor','layout_editor'): st.session_state.pop(key,None)
+    st.session_state.sku_editor_version=st.session_state.get('sku_editor_version',0)+1
+    st.session_state.layout_editor_version=st.session_state.get('layout_editor_version',0)+1
 
 def cargar_segundo():
     st.session_state.skus=pd.DataFrame([
@@ -101,7 +102,35 @@ def cargar_segundo():
     st.session_state.reserva=2.5
     st.session_state.picking=1.0
     st.session_state.reposicion=2.0
-    for key in ('sku_editor','layout_editor'): st.session_state.pop(key,None)
+    st.session_state.sku_editor_version=st.session_state.get('sku_editor_version',0)+1
+    st.session_state.layout_editor_version=st.session_state.get('layout_editor_version',0)+1
+
+# Guardar cambios de los editores ANTES de que Streamlit vuelva a dibujar la página.
+# Usar una clave nueva evita que los cambios pendientes de un editor antiguo
+# se apliquen otra vez a los datos nuevos.
+def guardar_editor_skus():
+    key=f"sku_editor_v{st.session_state.get('sku_editor_version',0)}"
+    cambios=st.session_state.get(key,{})
+    df=st.session_state.skus.copy()
+    for idx, valores in cambios.get('edited_rows',{}).items():
+        for col, valor in valores.items():
+            df.at[int(idx),col]=valor
+    if cambios.get('deleted_rows'):
+        df=df.drop(index=cambios['deleted_rows']).reset_index(drop=True)
+    if cambios.get('added_rows'):
+        df=pd.concat([df,pd.DataFrame(cambios['added_rows'])],ignore_index=True)
+    st.session_state.skus=df.reset_index(drop=True)
+    st.session_state.sku_editor_version=st.session_state.get('sku_editor_version',0)+1
+
+def guardar_editor_layout():
+    key=f"layout_editor_v{st.session_state.get('layout_editor_version',0)}"
+    cambios=st.session_state.get(key,{})
+    df=st.session_state.layout.copy()
+    for idx, valores in cambios.get('edited_rows',{}).items():
+        for col, valor in valores.items():
+            df.iat[int(idx),int(col)]=valor
+    st.session_state.layout=df
+    st.session_state.layout_editor_version=st.session_state.get('layout_editor_version',0)+1
 
 with st.sidebar:
     st.header('Parámetros del almacén')
@@ -129,7 +158,7 @@ with pestanas[0]:
             st.dataframe(df_importado,hide_index=True,use_container_width=True)
             if st.button('Confirmar importación y reemplazar productos',type='primary'):
                 st.session_state.skus=df_importado.copy()
-                st.session_state.pop('sku_editor',None)
+                st.session_state.sku_editor_version=st.session_state.get('sku_editor_version',0)+1
                 st.rerun()
         except Exception as e:
             st.error(f'No se pudo importar el archivo: {e}')
@@ -146,11 +175,11 @@ with pestanas[0]:
             st.error('Debe quedar al menos un SKU. Importá otro archivo si querés reemplazarlos todos.')
         else:
             st.session_state.skus=restantes.reset_index(drop=True)
-            st.session_state.pop('sku_editor',None)
+            st.session_state.sku_editor_version=st.session_state.get('sku_editor_version',0)+1
             st.session_state['_limpiar_sku_eliminar'] = True
             # No modificar sku_eliminar aquí: el multiselect ya fue instanciado.
             st.rerun()
-    skus_edit=st.data_editor(st.session_state.skus,num_rows='dynamic',hide_index=True,use_container_width=True,key='sku_editor',column_config={
+    skus_edit=st.data_editor(st.session_state.skus,num_rows='dynamic',hide_index=True,use_container_width=True,key=f"sku_editor_v{st.session_state.get('sku_editor_version',0)}",on_change=guardar_editor_skus,column_config={
         'SKU':st.column_config.TextColumn('SKU',required=True),
         'p':st.column_config.NumberColumn('p · extracciones/semana'),
         'd':st.column_config.NumberColumn('d · pallets/semana',format='%.2f'),
@@ -158,7 +187,7 @@ with pestanas[0]:
         'b':st.column_config.NumberColumn('b · pallets/ubicación',format='%.2f'),
         'c':st.column_config.NumberColumn('c · frentes'),
         'u':st.column_config.NumberColumn('u · ubicaciones')})
-    st.session_state.skus=skus_edit.copy()
+    skus_edit=st.session_state.skus.copy()
     st.caption('Atención: P mayúscula y p minúscula son datos diferentes. Usá punto decimal al escribir, por ejemplo 0.8.')
 
 with pestanas[3]:
@@ -171,7 +200,7 @@ with pestanas[3]:
             nuevo=pd.read_excel(layout_file,header=None,dtype=str) if layout_file.name.lower().endswith('xlsx') else pd.read_csv(layout_file,header=None,dtype=str,sep=None,engine='python')
             if nuevo.isna().any().any(): raise ValueError('Hay casillas vacías. Completalas con PASILLO o BLOQUEADO.')
             st.session_state.layout=nuevo.astype(str)
-            st.session_state.pop('layout_editor',None)
+            st.session_state.layout_editor_version=st.session_state.get('layout_editor_version',0)+1
             st.rerun()
         except Exception as e: st.error(f'No se pudo cargar el layout: {e}')
     st.download_button('Descargar layout de ejemplo (CSV)',pd.DataFrame(DEFAULT_LAYOUT).to_csv(index=False,header=False).encode('utf-8-sig'),'plantilla_layout.csv','text/csv')
@@ -186,16 +215,16 @@ with pestanas[3]:
         for i in range(filas):
             matriz.append([str(anterior.iat[i,j]) if i<len(anterior) and j<len(anterior.columns) else 'BLOQUEADO' for j in range(columnas)])
         st.session_state.layout=pd.DataFrame(matriz)
-        st.session_state.pop('layout_editor',None)
+        st.session_state.layout_editor_version=st.session_state.get('layout_editor_version',0)+1
         st.rerun()
     st.caption('Ejemplo: L09 = dirección habilitada; PASILLO = espacio de circulación; BLOQUEADO = espacio inutilizable. Al agrandar el plano, las celdas nuevas empiezan BLOQUEADO para evitar asignaciones accidentales.')
-    layout_edit=st.data_editor(st.session_state.layout,hide_index=True,use_container_width=True,key='layout_editor',column_config={i:st.column_config.TextColumn(f'Columna {i+1}') for i in range(len(st.session_state.layout.columns))})
+    layout_edit=st.data_editor(st.session_state.layout,hide_index=True,use_container_width=True,key=f"layout_editor_v{st.session_state.get('layout_editor_version',0)}",on_change=guardar_editor_layout,column_config={i:st.column_config.TextColumn(f'Columna {i+1}') for i in range(len(st.session_state.layout.columns))})
 
 error=None
 try:
     registros=skus_edit.to_dict('records')
     items=preparar_skus(registros,reserva,picking,reposicion)
-    grid=[[str(v).strip().upper() for v in row] for row in layout_edit.values.tolist()]
+    grid=[[str(v).strip().upper() for v in row] for row in st.session_state.layout.values.tolist()]
     direcciones=validar_layout(grid,N)
     propuestas=optimizar(items,N,limite=3)
     mejor=propuestas[0]
