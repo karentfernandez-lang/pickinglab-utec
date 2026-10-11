@@ -360,6 +360,99 @@ with pestanas[4]:
             pd.DataFrame([{'Propuesta':i+1,'Ubicaciones':p['ubicaciones'],'Ahorro':p['ahorro']} for i,p in enumerate(propuestas)]).to_excel(writer,sheet_name='Comparacion',index=False)
             pd.DataFrame(grid).to_excel(writer,sheet_name='Layout',header=False,index=False)
             pd.DataFrame([{'SKU':k,'Direcciones':', '.join(v)} for k,v in por_sku.items()]).to_excel(writer,sheet_name='Direcciones',index=False)
+            # Guía y resumen legibles, incluidos en cada exportación.
+            glosario=[
+                ('SKU','Código único de producto','identificador','Un SKU puede ocupar varias direcciones'),
+                ('p','Extracciones semanales','extracciones/semana',''),
+                ('d','Demanda en pallets semanales','pallets/semana',''),
+                ('P','Inventario de referencia','pallets',''),
+                ('b','Capacidad por ubicación','pallets/ubicación','Debe ser mayor que 0'),
+                ('c','Frentes mínimos','ubicaciones',''),
+                ('u','Máximo de ubicaciones (Todo)','ubicaciones',''),
+                ('l','Mínimo de ubicaciones','ubicaciones','MAX(REDONDEAR.MAS(P/b;0);c)'),
+                ('N','Capacidad del área adelantada','ubicaciones','Suma de asignaciones ≤ N'),
+                ('t_reserva','Tiempo por extracción en reserva','min/extracción',''),
+                ('t_picking','Tiempo por extracción en picking','min/extracción',''),
+                ('t_reposición','Tiempo por reposición','min/reposición',''),
+                ('s','Ahorro por extracción','min/extracción','t_reserva - t_picking'),
+                ('B mínimo','Ahorro de opción Mínimo','min/semana','s × p - t_reposición × d'),
+                ('B todo','Ahorro de opción Todo','min/semana','s × p'),
+                ('Nada / Mínimo / Todo','Decisiones posibles','ubicaciones','0 / l / u'),
+            ]
+            pd.DataFrame(glosario,columns=['Símbolo','Significado','Unidad','Fórmula / observación']).to_excel(writer,sheet_name='Diccionario',index=False,startrow=3)
+            resumen=[
+                ('Capacidad N',N,'ubicaciones'),
+                ('Tiempo en reserva',reserva,'min/extracción'),
+                ('Tiempo en picking',picking,'min/extracción'),
+                ('Tiempo de reposición',reposicion,'min/reposición'),
+                ('Ahorro por extracción',reserva-picking,'min/extracción'),
+                ('Ubicaciones usadas (óptimo)',mejor['ubicaciones'],'ubicaciones'),
+                ('Ahorro óptimo semanal',mejor['ahorro'],'min/semana'),
+                ('Tiempo base semanal',sum(float(it['p']) for it in items)*reserva,'min/semana'),
+                ('Tiempo final semanal',sum(float(it['p']) for it in items)*reserva-mejor['ahorro'],'min/semana'),
+            ]
+            pd.DataFrame(resumen,columns=['Indicador','Valor','Unidad']).to_excel(writer,sheet_name='Resumen',index=False,startrow=3)
+            # Estilo consistente para todas las tablas; no altera cálculos ni datos.
+            from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+            from openpyxl.utils import get_column_letter
+            from openpyxl.worksheet.dimensions import ColumnDimension
+            azul='1B365D'; acento='2563EB'; claro='EFF5FC'; verde='DCFCE7'
+            for ws in writer.book.worksheets:
+                es_especial=ws.title in ('Resumen','Diccionario')
+                encabezado=5 if es_especial else 1
+                if es_especial:
+                    ws.merge_cells(start_row=1,start_column=1,end_row=1,end_column=max(ws.max_column,3))
+                    titulo=ws.cell(1,1)
+                    titulo.value='PICKINGLAB · '+('RESUMEN DE RESULTADOS' if ws.title=='Resumen' else 'DICCIONARIO DE VARIABLES')
+                    titulo.font=Font(name='Aptos Display',size=16,bold=True,color='FFFFFF')
+                    titulo.fill=PatternFill('solid',fgColor=azul)
+                    titulo.alignment=Alignment(vertical='center')
+                    ws.row_dimensions[1].height=36
+                    ws.cell(2,1,'Reporte exportado desde PickingLab · UTEC')
+                    ws.cell(2,1).font=Font(name='Aptos',size=10,italic=True,color='64748B')
+                ws.sheet_view.showGridLines=False
+                ws.freeze_panes=f'A{encabezado+1}' if ws.title!='Layout' else 'A1'
+                ws.sheet_properties.pageSetUpPr.fitToPage=True
+                ws.page_setup.fitToWidth=1
+                ws.print_options.horizontalCentered=True
+                ws.sheet_properties.tabColor=acento if ws.title in ('Resumen','Optimo') else azul
+                if ws.title!='Layout':
+                    ws.auto_filter.ref=f'A{encabezado}:{get_column_letter(ws.max_column)}{ws.max_row}'
+                    ws.row_dimensions[encabezado].height=28
+                    for cell in ws[encabezado]:
+                        cell.fill=PatternFill('solid',fgColor=azul)
+                        cell.font=Font(name='Aptos',size=11,bold=True,color='FFFFFF')
+                        cell.alignment=Alignment(vertical='center',wrap_text=True)
+                    for row in ws.iter_rows(min_row=encabezado+1):
+                        for cell in row:
+                            cell.font=Font(name='Aptos',size=10,color='1F2937')
+                            cell.alignment=Alignment(vertical='center',wrap_text=True)
+                            if cell.row%2==0:cell.fill=PatternFill('solid',fgColor=claro)
+                            if isinstance(cell.value,(int,float)) and not isinstance(cell.value,bool):
+                                cell.number_format='#,##0.##'
+                        ws.row_dimensions[row[0].row].height=27 if ws.title!='Diccionario' else 34
+                    if ws.title=='Resumen':
+                        for idx in (11,):
+                            for cell in ws[idx]:
+                                cell.fill=PatternFill('solid',fgColor=verde)
+                                cell.font=Font(name='Aptos',size=11,bold=True,color='166534')
+                else:
+                    for row in ws:
+                        for cell in row:
+                            cell.alignment=Alignment(horizontal='center',vertical='center')
+                            cell.font=Font(name='Aptos',size=10,bold=True,color='1F2937')
+                            cell.fill=PatternFill('solid',fgColor=('CBD5E1' if cell.value in ('PASILLO','BLOQUEADO') else 'E0F2FE'))
+                        ws.row_dimensions[row[0].row].height=31
+                for col in ws.columns:
+                    letter=col[0].column_letter
+                    texts=[str(c.value) for c in col if c.value is not None and c.coordinate not in ('A1','A2')]
+                    ancho=min(58,max(14,max((len(v) for v in texts),default=12)+3))
+                    if ws.title=='Diccionario':ancho={'A':23,'B':43,'C':26,'D':57}.get(letter,ancho)
+                    if ws.title=='Resumen':ancho={'A':39,'B':22,'C':25}.get(letter,ancho)
+                    if ws.title=='Layout':ancho=18
+                    ws.column_dimensions[letter].width=ancho
+            # Poner el resumen como primera pestaña al abrir el archivo.
+            writer.book._sheets.insert(0,writer.book._sheets.pop(writer.book._sheets.index(writer.book['Resumen'])))
         st.download_button('📥 Descargar resultados en Excel',data=buffer.getvalue(),file_name='resultados_picking.xlsx',mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
         st.download_button('Descargar plantilla de layout (CSV)',data=pd.DataFrame(DEFAULT_LAYOUT).to_csv(index=False,header=False).encode('utf-8-sig'),file_name='plantilla_layout.csv',mime='text/csv')
         st.download_button('Descargar plantilla de SKU (CSV)',data=pd.DataFrame(DEFAULT_SKUS).to_csv(index=False).encode('utf-8-sig'),file_name='plantilla_sku.csv',mime='text/csv')
