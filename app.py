@@ -397,6 +397,10 @@ with pestanas[4]:
             from openpyxl.utils import get_column_letter
             from openpyxl.worksheet.dimensions import ColumnDimension
             azul='1B365D'; acento='2563EB'; claro='EFF5FC'; verde='DCFCE7'
+            borde=Border(left=Side(style='thin',color='CBD5E1'),
+                         right=Side(style='thin',color='CBD5E1'),
+                         top=Side(style='thin',color='CBD5E1'),
+                         bottom=Side(style='thin',color='CBD5E1'))
             for ws in writer.book.worksheets:
                 es_especial=ws.title in ('Resumen','Diccionario')
                 encabezado=5 if es_especial else 1
@@ -411,6 +415,8 @@ with pestanas[4]:
                     ws.cell(2,1,'Reporte exportado desde PickingLab · UTEC')
                     ws.cell(2,1).font=Font(name='Aptos',size=10,italic=True,color='64748B')
                 ws.sheet_view.showGridLines=False
+                ws.sheet_view.zoomScale=90
+                ws.print_title_rows=f'1:{encabezado}' if ws.title!='Layout' else None
                 ws.freeze_panes=f'A{encabezado+1}' if ws.title!='Layout' else 'A1'
                 ws.sheet_properties.pageSetUpPr.fitToPage=True
                 ws.page_setup.fitToWidth=1
@@ -423,14 +429,16 @@ with pestanas[4]:
                         cell.fill=PatternFill('solid',fgColor=azul)
                         cell.font=Font(name='Aptos',size=11,bold=True,color='FFFFFF')
                         cell.alignment=Alignment(vertical='center',wrap_text=True)
+                        cell.border=borde
                     for row in ws.iter_rows(min_row=encabezado+1):
                         for cell in row:
                             cell.font=Font(name='Aptos',size=10,color='1F2937')
                             cell.alignment=Alignment(vertical='center',wrap_text=True)
+                            cell.border=borde
                             if cell.row%2==0:cell.fill=PatternFill('solid',fgColor=claro)
                             if isinstance(cell.value,(int,float)) and not isinstance(cell.value,bool):
                                 cell.number_format='#,##0.##'
-                        ws.row_dimensions[row[0].row].height=27 if ws.title!='Diccionario' else 34
+                        ws.row_dimensions[row[0].row].height=29 if ws.title!='Diccionario' else 44
                     if ws.title=='Resumen':
                         for idx in (11,):
                             for cell in ws[idx]:
@@ -439,7 +447,8 @@ with pestanas[4]:
                 else:
                     for row in ws:
                         for cell in row:
-                            cell.alignment=Alignment(horizontal='center',vertical='center')
+                            cell.alignment=Alignment(horizontal='center',vertical='center',wrap_text=True)
+                            cell.border=borde
                             cell.font=Font(name='Aptos',size=10,bold=True,color='1F2937')
                             cell.fill=PatternFill('solid',fgColor=('CBD5E1' if cell.value in ('PASILLO','BLOQUEADO') else 'E0F2FE'))
                         ws.row_dimensions[row[0].row].height=31
@@ -449,7 +458,7 @@ with pestanas[4]:
                     ancho=min(58,max(14,max((len(v) for v in texts),default=12)+3))
                     if ws.title=='Diccionario':ancho={'A':23,'B':43,'C':26,'D':57}.get(letter,ancho)
                     if ws.title=='Resumen':ancho={'A':39,'B':22,'C':25}.get(letter,ancho)
-                    if ws.title=='Layout':ancho=18
+                    if ws.title=='Layout':ancho=19
                     ws.column_dimensions[letter].width=ancho
             # Poner el resumen como primera pestaña al abrir el archivo.
             writer.book._sheets.insert(0,writer.book._sheets.pop(writer.book._sheets.index(writer.book['Resumen'])))
