@@ -1,4 +1,5 @@
 from pathlib import Path
+import base64
 import io
 import json
 import html
@@ -68,14 +69,25 @@ h1,h2,h3{letter-spacing:-.03em}
 .direccion{font-size:.78rem;opacity:.72}.sku{font-size:1.3rem;font-weight:750}
 </style>''',unsafe_allow_html=True)
 
+def logo_enlace(archivo, destino, descripcion):
+    imagen = Path(__file__).parent / archivo
+    encoded = base64.b64encode(imagen.read_bytes()).decode('ascii')
+    return (f'<a href="{destino}" target="_blank" rel="noopener noreferrer" '
+            f'title="{descripcion}" aria-label="{descripcion}" '
+            'style="display:flex;align-items:center;justify-content:center;'
+            'width:86px;height:86px;margin:auto;text-decoration:none;">'
+            f'<img src="data:image/png;base64,{encoded}" alt="{descripcion}" '
+            'style="width:76px;height:76px;object-fit:contain;display:block;" />'
+            '</a>')
+
 cabecera, logo_universidad, logo_carrera = st.columns([7, 1, 1], vertical_alignment='center')
 with cabecera:
     st.title('📦 PickingLab · UTEC')
     st.caption('Organización del área adelantada de picking de cajas desde pallets · Modelo didáctico Nada / Mínimo / Todo')
 with logo_universidad:
-    st.image(str(Path(__file__).parent / 'logo_utec.png'), width=72)
+    st.markdown(logo_enlace('logo_utec.png', 'https://utec.edu.uy/', 'Ir al sitio oficial de UTEC'), unsafe_allow_html=True)
 with logo_carrera:
-    st.image(str(Path(__file__).parent / 'logo_logistica.png'), width=72)
+    st.markdown(logo_enlace('logo_logistica.png', 'https://utec.edu.uy/es/educacion/carrera/ingenieria-en-logistica/', 'Ver Ingeniería en Logística en UTEC'), unsafe_allow_html=True)
 
 if 'skus' not in st.session_state: st.session_state.skus=pd.DataFrame(DEFAULT_SKUS)
 if 'layout' not in st.session_state: st.session_state.layout=pd.DataFrame(DEFAULT_LAYOUT)
