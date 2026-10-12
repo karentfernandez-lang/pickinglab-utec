@@ -4,6 +4,7 @@ import html
 import math
 import csv
 import unicodedata
+import qrcode
 import pandas as pd
 import streamlit as st
 from motor import DEFAULT_SKUS, DEFAULT_LAYOUT, preparar_skus, validar_layout, optimizar, asignar_direcciones
@@ -140,8 +141,9 @@ with st.sidebar:
     reposicion=st.number_input('Reposición por pallet (min)',min_value=0.0,step=.25,key='reposicion')
     st.caption('Los tiempos son promedios fijos; la actividad corresponde a una semana.')
     st.button('Restaurar datos de ejemplo',use_container_width=True,on_click=restaurar_caso)
+    st.button('Cargar segundo almacén de ejemplo',use_container_width=True,on_click=cargar_segundo)
 
-pestanas=st.tabs(['1 · Datos','2 · Cálculos','3 · Optimización','4 · Layout','5 · Pruebas'])
+pestanas=st.tabs(['1 · Datos','2 · Cálculos','3 · Optimización','4 · Layout','5 · Resultados y acceso'])
 with pestanas[0]:
     st.subheader('Datos de los productos')
     st.info('**Empezá acá:** editá los SKU o importá una planilla. Los tiempos y N están en el panel lateral. Después entrá en «2 · Cálculos» para revisar cada cuenta.')
@@ -337,21 +339,11 @@ with pestanas[3]:
         st.caption('Comprobación: el número de direcciones de cada SKU debe coincidir exactamente con las ubicaciones de su decisión Nada, Mínimo o Todo. Una dirección solo puede aparecer una vez.')
 
 with pestanas[4]:
-    st.subheader('Validación y exportación')
-    st.caption('Usá esta pestaña para demostrar que el programa cumple las restricciones. Luego probá otro almacén y exportá el resultado para el informe.')
-    if error: st.warning('Corregí primero los datos: '+error)
+    st.subheader('Resultados y acceso a PickingLab')
+    st.caption('Descargá los resultados en Excel y compartí la aplicación durante la presentación.')
+    if error:
+        st.warning('Para exportar resultados, corregí primero los datos: '+error)
     else:
-        comprobaciones=[
-            ('No se supera la capacidad',mejor['ubicaciones']<=N),
-            ('Cada SKU recibe 0, l o u',all(x['ubicaciones'] in (0,next(it['l'] for it in items if it['SKU']==x['SKU']),next(it['u'] for it in items if it['SKU']==x['SKU'])) for x in mejor['decisiones'])),
-            ('Las direcciones no se repiten',len(asignadas)==len(set(asignadas))),
-            ('El plano coincide con el espacio asignado',len(asignadas)==mejor['ubicaciones']),
-            ('No se asigna a PASILLO o BLOQUEADO',all(d in direcciones for d in asignadas)),
-        ]
-        for nombre,ok in comprobaciones: st.write(('✅' if ok else '❌')+' '+nombre)
-        st.markdown('**Prueba de referencia X (según la consigna):** p=50, d=8, P=0.8, b=1, c=1, u=3; s=1 y reposición=3 → l=1; Mínimo=26 min; Todo=50 min.')
-        st.markdown('**Segundo almacén:** usá el botón siguiente para cargar un caso distinto con 4 SKU y una casilla BLOQUEADO. También podés importar tus propios archivos.')
-        st.button('🧪 Cargar segundo almacén de prueba',on_click=cargar_segundo)
         buffer=io.BytesIO()
         with pd.ExcelWriter(buffer,engine='openpyxl') as writer:
             pd.DataFrame(registros).to_excel(writer,sheet_name='Datos',index=False)
@@ -463,5 +455,32 @@ with pestanas[4]:
             # Poner el resumen como primera pestaña al abrir el archivo.
             writer.book._sheets.insert(0,writer.book._sheets.pop(writer.book._sheets.index(writer.book['Resumen'])))
         st.download_button('📥 Descargar resultados en Excel',data=buffer.getvalue(),file_name='resultados_picking.xlsx',mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-        st.download_button('Descargar plantilla de layout (CSV)',data=pd.DataFrame(DEFAULT_LAYOUT).to_csv(index=False,header=False).encode('utf-8-sig'),file_name='plantilla_layout.csv',mime='text/csv')
-        st.download_button('Descargar plantilla de SKU (CSV)',data=pd.DataFrame(DEFAULT_SKUS).to_csv(index=False).encode('utf-8-sig'),file_name='plantilla_sku.csv',mime='text/csv')
+
+
+st.divider()
+st.markdown('#### Compartir la aplicación con un código QR')
+st.caption('Mostrá este código en la presentación para que tus compañeros abran PickingLab desde sus celulares.')
+try:
+    url_actual=st.context.url
+except (AttributeError, RuntimeError):
+    url_actual=''
+url_inicial=url_actual if str(url_actual).startswith('https://') else ''
+url_publica=st.text_input('Enlace público de PickingLab (Streamlit Cloud)',value=url_inicial,placeholder='https://tu-app.streamlit.app',key='url_publica_qr')
+url_publica=url_publica.strip()
+if url_publica.startswith('https://') and '.' in url_publica.split('/')[2]:
+    qr=qrcode.QRCode(version=None,error_correction=qrcode.constants.ERROR_CORRECT_M,box_size=9,border=3)
+    qr.add_data(url_publica)
+    qr.make(fit=True)
+    img=qr.make_image(fill_color='black',back_color='white').convert('RGB')
+    salida=io.BytesIO()
+    img.save(salida,format='PNG')
+    izquierda,derecha=st.columns([1,2])
+    with izquierda:
+        st.image(salida.getvalue(),caption='Escaneá para abrir PickingLab',width=250)
+        st.download_button('Descargar código QR (PNG)',data=salida.getvalue(),file_name='QR_PickingLab.png',mime='image/png')
+    with derecha:
+        st.success('Código QR listo para mostrar.')
+        st.link_button('Abrir aplicación',url_publica)
+        st.code(url_publica,language=None)
+else:
+    st.info('Pegá el enlace público HTTPS de Streamlit Cloud para generar el QR. Un enlace local (localhost) no funciona en los celulares de tus compañeros.')

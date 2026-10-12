@@ -55,3 +55,9 @@ ACTUALIZACIÓN
 - Eliminar varios SKU mediante selección y botón.
 
 NUEVO: En 4 · Layout se muestran las direcciones LIBRES, las OCUPADAS y las que quedan fuera de la capacidad N. Si se usan las N ubicaciones, el listado indica que no queda ninguna libre.
+
+PRESENTACIÓN Y CÓDIGO QR
+En el panel lateral se encuentran juntos Restaurar datos de ejemplo y Cargar segundo almacén de ejemplo.
+En la pestaña 5 · Resultados y acceso solo se exportan resultados en Excel y se genera el código QR.
+La app usa su enlace HTTPS público cuando puede detectarlo. Si no, pegar el enlace de Streamlit Cloud.
+No usar localhost: los celulares de los compañeros no pueden abrirlo.
