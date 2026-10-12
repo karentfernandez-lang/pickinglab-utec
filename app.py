@@ -1,3 +1,4 @@
+from pathlib import Path
 import io
 import json
 import html
@@ -67,8 +68,14 @@ h1,h2,h3{letter-spacing:-.03em}
 .direccion{font-size:.78rem;opacity:.72}.sku{font-size:1.3rem;font-weight:750}
 </style>''',unsafe_allow_html=True)
 
-st.title('📦 PickingLab · UTEC')
-st.caption('Organización del área adelantada de picking de cajas desde pallets · Modelo didáctico Nada / Mínimo / Todo')
+cabecera, logo_universidad, logo_carrera = st.columns([7, 1, 1], vertical_alignment='center')
+with cabecera:
+    st.title('📦 PickingLab · UTEC')
+    st.caption('Organización del área adelantada de picking de cajas desde pallets · Modelo didáctico Nada / Mínimo / Todo')
+with logo_universidad:
+    st.image(str(Path(__file__).parent / 'logo_utec.png'), width=72)
+with logo_carrera:
+    st.image(str(Path(__file__).parent / 'logo_logistica.png'), width=72)
 
 if 'skus' not in st.session_state: st.session_state.skus=pd.DataFrame(DEFAULT_SKUS)
 if 'layout' not in st.session_state: st.session_state.layout=pd.DataFrame(DEFAULT_LAYOUT)
@@ -459,7 +466,6 @@ with pestanas[4]:
 
 st.divider()
 st.markdown('#### Compartir la aplicación con un código QR')
-st.caption('Mostrá este código en la presentación para que tus compañeros abran PickingLab desde sus celulares.')
 try:
     url_actual=st.context.url
 except (AttributeError, RuntimeError):
