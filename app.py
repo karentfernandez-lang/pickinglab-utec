@@ -5,6 +5,7 @@ import json
 import html
 import math
 import csv
+import hashlib
 import unicodedata
 import qrcode
 import pandas as pd
@@ -279,7 +280,7 @@ with pestanas[2]:
         st.dataframe(pd.DataFrame(mejor['decisiones']),hide_index=True,use_container_width=True)
         st.caption(f'Escenario base (todo en reserva): {base:g} minutos por semana. Trabajo con propuesta: {base:g} − {mejor["ahorro"]:g} = {base-mejor["ahorro"]:g} minutos.')
         st.subheader('Comparación de propuestas factibles')
-        st.caption('Estas propuestas se generan automáticamente. Más abajo podés armar tres propuestas manuales, como pide el profesor.')
+        st.caption('La aplicación calcula automáticamente las tres mejores propuestas factibles disponibles para los datos actuales. También podés modificarlas abajo.')
         st.dataframe(pd.DataFrame([{'Propuesta':f'{i+1}','Ubicaciones':p['ubicaciones'],'Ahorro (min/sem)':p['ahorro'],'Decisiones':', '.join(f"{d['SKU']}: {d['opcion']}" for d in p['decisiones'])} for i,p in enumerate(propuestas)]),hide_index=True,use_container_width=True)
         import altair as alt
         grafico_df=pd.DataFrame({'Propuesta':[f'Propuesta {i+1}' for i in range(len(propuestas))],'Ahorro semanal':[p['ahorro'] for p in propuestas]})
@@ -291,8 +292,11 @@ with pestanas[2]:
         ).properties(height=290)
         st.altair_chart(grafico,use_container_width=True)
         st.info('La optimización es exacta: evalúa las alternativas Nada, Mínimo y Todo mediante programación dinámica, respetando N. Ordenar por ahorro por ubicación NO garantiza el óptimo.')
-        st.markdown('### Compará tres propuestas propias')
-        st.caption('Seleccioná Nada, Mínimo o Todo para cada SKU. Se verifican las ubicaciones y el ahorro de cada propuesta, incluso si no es factible.')
+        st.markdown('### Tres propuestas para comparar y modificar')
+        st.caption('Se cargan automáticamente tres propuestas factibles para cualquier conjunto de SKU. Podés cambiar las decisiones manualmente y ver cómo cambia el ahorro.')
+        # Cambiar de almacén o editar los datos inicia nuevas propuestas; las elecciones
+        # hechas manualmente se conservan mientras los datos permanezcan iguales.
+        firma_datos=hashlib.sha256(json.dumps({'sku':[(it['SKU'],it['l'],it['u'],it['B_min'],it['B_todo']) for it in items], 'N':N},sort_keys=True,default=str).encode()).hexdigest()[:12]
         columnas=st.columns(3)
         alternativas=[]
         for k,col in enumerate(columnas,1):
@@ -301,8 +305,16 @@ with pestanas[2]:
                 decision=[]
                 for it in items:
                     nombres=[x[0] for x in it['opciones']]
-                    predeterminado={1:{'A':'Todo','B':'Todo','C':'Mínimo'},2:{'A':'Mínimo','B':'Todo','C':'Mínimo','E':'Todo'},3:{'A':'Mínimo','B':'Mínimo','C':'Mínimo','E':'Todo','F':'Todo'}}.get(k,{})
-                    elegido=st.selectbox(it['SKU'],nombres,index=nombres.index(predeterminado.get(it['SKU'],'Nada')) if predeterminado.get(it['SKU'],'Nada') in nombres else 0,key=f'prop_{k}_{it["SKU"]}')
+                    # Mantener las tres propuestas originales de clase para A-F.
+                    # Para cualquier otro almacén, precargar las tres mejores alternativas calculadas.
+                    ejemplo_original=[x['SKU'] for x in items]==['A','B','C','D','E','F'] and N==8
+                    if ejemplo_original:
+                        ejemplos={1:{'A':'Todo','B':'Todo','C':'Mínimo'},2:{'A':'Mínimo','B':'Todo','C':'Mínimo','E':'Todo'},3:{'A':'Mínimo','B':'Mínimo','C':'Mínimo','E':'Todo','F':'Todo'}}
+                        opcion_inicial=ejemplos[k].get(it['SKU'],'Nada')
+                    else:
+                        opcion_inicial=next((d['opcion'] for d in propuestas[k-1]['decisiones'] if d['SKU']==it['SKU']), 'Nada') if k<=len(propuestas) else 'Nada'
+                    if opcion_inicial not in nombres: opcion_inicial='Nada'
+                    elegido=st.selectbox(it['SKU'],nombres,index=nombres.index(opcion_inicial),key=f'prop_{firma_datos}_{k}_{it["SKU"]}')
                     decision.append(next(x for x in it['opciones'] if x[0]==elegido))
                 lugares=sum(x[1] for x in decision)
                 ahorro=sum(x[2] for x in decision)
