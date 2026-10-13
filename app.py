@@ -278,6 +278,10 @@ with pestanas[2]:
         base=sum(it['p']*reserva for it in items)
         d.metric('Trabajo semanal estimado',f"{base-mejor['ahorro']:g} min")
         st.dataframe(pd.DataFrame(mejor['decisiones']),hide_index=True,use_container_width=True)
+        st.markdown('**Ahorro por cada SKU (incluidos los que quedan en reserva)**')
+        resumen_sku=pd.DataFrame([{'SKU':d['SKU'],'Opción':d['opcion'],'Ubicaciones':d['ubicaciones'],'Ahorro (min/sem)':d['ahorro']} for d in mejor['decisiones']])
+        st.dataframe(resumen_sku,hide_index=True,use_container_width=True)
+        st.markdown(f'**Ahorro total: {mejor["ahorro"]:g} min/semana**')
         st.caption(f'Escenario base (todo en reserva): {base:g} minutos por semana. Trabajo con propuesta: {base:g} − {mejor["ahorro"]:g} = {base-mejor["ahorro"]:g} minutos.')
         st.subheader('Comparación de propuestas factibles')
         st.caption('La aplicación calcula automáticamente las tres mejores propuestas factibles disponibles para los datos actuales. También podés modificarlas abajo.')
@@ -488,29 +492,29 @@ with pestanas[4]:
         st.download_button('📥 Descargar resultados en Excel',data=buffer.getvalue(),file_name='resultados_picking.xlsx',mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 
-st.divider()
-st.markdown('#### Compartir la aplicación con un código QR')
-try:
-    url_actual=st.context.url
-except (AttributeError, RuntimeError):
-    url_actual=''
-url_inicial=url_actual if str(url_actual).startswith('https://') else ''
-url_publica=st.text_input('Enlace público de PickingLab (Streamlit Cloud)',value=url_inicial,placeholder='https://tu-app.streamlit.app',key='url_publica_qr')
-url_publica=url_publica.strip()
-if url_publica.startswith('https://') and '.' in url_publica.split('/')[2]:
-    qr=qrcode.QRCode(version=None,error_correction=qrcode.constants.ERROR_CORRECT_M,box_size=9,border=3)
-    qr.add_data(url_publica)
-    qr.make(fit=True)
-    img=qr.make_image(fill_color='black',back_color='white').convert('RGB')
-    salida=io.BytesIO()
-    img.save(salida,format='PNG')
-    izquierda,derecha=st.columns([1,2])
-    with izquierda:
-        st.image(salida.getvalue(),caption='Escaneá para abrir PickingLab',width=250)
-        st.download_button('Descargar código QR (PNG)',data=salida.getvalue(),file_name='QR_PickingLab.png',mime='image/png')
-    with derecha:
-        st.success('Código QR listo para mostrar.')
-        st.link_button('Abrir aplicación',url_publica)
-        st.code(url_publica,language=None)
-else:
-    st.info('Pegá el enlace público HTTPS de Streamlit Cloud para generar el QR. Un enlace local (localhost) no funciona en los celulares de tus compañeros.')
+    st.divider()
+    st.markdown('#### Compartir la aplicación con un código QR')
+    try:
+        url_actual=st.context.url
+    except (AttributeError, RuntimeError):
+        url_actual=''
+    url_inicial=url_actual if str(url_actual).startswith('https://') else ''
+    url_publica=st.text_input('Enlace público de PickingLab (Streamlit Cloud)',value=url_inicial,placeholder='https://tu-app.streamlit.app',key='url_publica_qr')
+    url_publica=url_publica.strip()
+    if url_publica.startswith('https://') and '.' in url_publica.split('/')[2]:
+        qr=qrcode.QRCode(version=None,error_correction=qrcode.constants.ERROR_CORRECT_M,box_size=9,border=3)
+        qr.add_data(url_publica)
+        qr.make(fit=True)
+        img=qr.make_image(fill_color='black',back_color='white').convert('RGB')
+        salida=io.BytesIO()
+        img.save(salida,format='PNG')
+        izquierda,derecha=st.columns([1,2])
+        with izquierda:
+            st.image(salida.getvalue(),caption='Escaneá para abrir PickingLab',width=250)
+            st.download_button('Descargar código QR (PNG)',data=salida.getvalue(),file_name='QR_PickingLab.png',mime='image/png')
+        with derecha:
+            st.success('Código QR listo para mostrar.')
+            st.link_button('Abrir aplicación',url_publica)
+            st.code(url_publica,language=None)
+    else:
+        st.info('Pegá el enlace público HTTPS de Streamlit Cloud para generar el QR. Un enlace local (localhost) no funciona en los celulares de tus compañeros.')
