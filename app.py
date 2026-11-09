@@ -229,8 +229,8 @@ with pestanas[3]:
 
     st.write('Cada casilla debe contener una dirección única (por ejemplo **L09**), **PASILLO** o **BLOQUEADO**. **No escribas LIBRE**: la aplicación lo mostrará automáticamente cuando una dirección no esté ocupada. Podés editar las celdas y agregar filas o columnas usando el tamaño elegido.')
     col1,col2=st.columns(2)
-    with col1: filas=st.number_input('Filas del plano',min_value=1,max_value=30,value=len(st.session_state.layout),step=1)
-    with col2: columnas=st.number_input('Columnas del plano',min_value=1,max_value=20,value=len(st.session_state.layout.columns),step=1)
+    with col1: filas=st.number_input('Filas del plano',min_value=1,max_value=100,value=len(st.session_state.layout),step=1)
+    with col2: columnas=st.number_input('Columnas del plano',min_value=1,max_value=100,value=len(st.session_state.layout.columns),step=1)
     if st.button('Cambiar tamaño del plano'):
         anterior=st.session_state.layout
         matriz=[]
